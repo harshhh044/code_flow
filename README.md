@@ -124,6 +124,7 @@ Current prototype uses localStorage with the following keys:
 
 - [Product Requirements Document (PRD)](./PRD_CODEFLOW.md)
 - [Architecture & User Flow](./ARCHITECTURE_AND_USER_FLOW.md)
+- [SYSTEM_FLOW_DIAGRAMS](./SYSTEM_FLOW_DIAGRAMS.md)
 
 ## Future Enhancements
 
