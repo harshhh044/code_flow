@@ -152,7 +152,8 @@ This project is developed for academic purposes.
 
 ## Team
 
-[Add your team member names and roles here]
+[1. Harsh kumar -2401201178]
+[2. Gaurav singh -2401201183]
 
 ## Acknowledgments
 
