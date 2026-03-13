@@ -17,7 +17,22 @@ const submitGrievance = async (req, res) => {
     console.log("[submitGrievance] Request body:", req.body);
     console.log("[submitGrievance] User from token:", req.user);
 
-  
+    // ✅ FIX: Better user checking
+    let submittedBy = null;
+    
+    if (!isAnonymous) {
+      // For non-anonymous, user MUST be logged in
+      if (!req.user || !req.user._id) {
+        console.error("[submitGrievance] User not found in request");
+        return res.status(401).json({ 
+          message: "User not found. Please login again." 
+        });
+      }
+      submittedBy = req.user._id;
+      console.log("[submitGrievance] Submitted by user ID:", submittedBy);
+    } else {
+      console.log("[submitGrievance] Anonymous submission");
+    }
 
     // Generate tracking code
     const year = new Date().getFullYear();
