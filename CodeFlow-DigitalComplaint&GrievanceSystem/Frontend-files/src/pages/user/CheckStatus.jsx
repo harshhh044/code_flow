@@ -7,7 +7,7 @@ const getStatusColor = (status) => {
   const s = (status || '').toLowerCase();
   if (s === 'resolved') return 'bg-green-100 text-green-700 border-green-200';
   if (s === 'pending' || s === 'processing') return 'bg-amber-100 text-amber-700 border-amber-200';
-  if (s === 'in progress' || s === 'in-progress') return 'bg-blue-100 text-blue-700 border-blue-200';
+  if (s === 'in progress') return 'bg-blue-100 text-blue-700 border-blue-200';
   if (s === 'rejected') return 'bg-red-100 text-red-700 border-red-200';
   return 'bg-gray-100 text-gray-600 border-gray-200';
 };
@@ -21,44 +21,35 @@ const UserCheckStatus = () => {
   const [listSearch, setListSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [trackingResult, setTrackingResult] = useState(null);
   const [trackingNotFound, setTrackingNotFound] = useState(false);
-  const [dataLoading, setDataLoading] = useState(true);
 
+  // ✅ Load user's grievances from backend
   useEffect(() => {
     const fetchGrievances = async () => {
+      if (!user) return;
+      setPageLoading(true);
       try {
-        setDataLoading(true);
-        // Fetch from API instead of localStorage
-        const userGrievances = await grievanceService.getUserGrievances(user);
-        setGrievances(userGrievances);
-        setFiltered(userGrievances);
-      } catch (error) {
-        console.error('Error fetching grievances:', error);
+        const data = await grievanceService.getUserGrievances(user);
+        setGrievances(data);
+        setFiltered(data);
+      } catch (err) {
+        console.error('[CheckStatus] fetch error:', err);
       } finally {
-        setDataLoading(false);
+        setPageLoading(false);
       }
     };
-
-    if (user?.email) {
-      fetchGrievances();
-    }
+    fetchGrievances();
   }, [user]);
 
+  // Filter list
   useEffect(() => {
     let result = [...grievances];
-    if (statusFilter !== 'All') {
-      result = result.filter(g => {
-        const status = (g.status || '').toLowerCase();
-        const filter = statusFilter.toLowerCase();
-        if (filter === 'in progress') return status === 'in progress' || status === 'in-progress';
-        return status === filter;
-      });
-    }
+    if (statusFilter !== 'All') result = result.filter(g => g.status === statusFilter);
     if (listSearch) {
       result = result.filter(g =>
         g.subject?.toLowerCase().includes(listSearch.toLowerCase()) ||
-        g.grievanceCode?.toLowerCase().includes(listSearch.toLowerCase()) ||
         g.code?.toLowerCase().includes(listSearch.toLowerCase()) ||
         g.category?.toLowerCase().includes(listSearch.toLowerCase())
       );
@@ -66,18 +57,16 @@ const UserCheckStatus = () => {
     setFiltered(result);
   }, [listSearch, statusFilter, grievances]);
 
+  // ✅ Track by code — hits backend
   const handleTrackByCode = async () => {
     if (!searchCode.trim()) return;
     setLoading(true);
     setTrackingNotFound(false);
     setTrackingResult(null);
-
     try {
-      // Fetch from API instead of localStorage
-      const found = await grievanceService.getGrievanceByCode(searchCode.trim());
+      const found = await grievanceService.getGrievanceByCode(searchCode.trim().toUpperCase());
       setTrackingResult(found);
-    } catch (error) {
-      console.error('Error tracking grievance:', error);
+    } catch {
       setTrackingNotFound(true);
     } finally {
       setLoading(false);
@@ -86,13 +75,16 @@ const UserCheckStatus = () => {
 
   const stats = {
     total: grievances.length,
-    pending: grievances.filter(g => (g.status || '').toLowerCase() === 'pending').length,
-    inProgress: grievances.filter(g => {
-      const status = (g.status || '').toLowerCase();
-      return status === 'in progress' || status === 'in-progress';
-    }).length,
-    resolved: grievances.filter(g => (g.status || '').toLowerCase() === 'resolved').length,
+    pending: grievances.filter(g => g.status === 'Pending').length,
+    inProgress: grievances.filter(g => g.status === 'In Progress').length,
+    resolved: grievances.filter(g => g.status === 'Resolved').length,
   };
+
+  if (pageLoading) return (
+    <div className="flex justify-center items-center min-h-[300px]">
+      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-900"></div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[var(--bg)] -m-4 p-4 md:-m-8 md:p-8 transition-colors duration-300">
@@ -100,8 +92,6 @@ const UserCheckStatus = () => {
         <h1 className="text-4xl font-black text-[var(--text-primary)] tracking-tight mb-2">Check Status</h1>
         <p className="text-[var(--text-secondary)] font-medium italic">Monitor your grievances and check status updates in real-time.</p>
       </div>
-
-
 
       {/* Stats Dashboard */}
       <div className="grid grid-cols-1 gap-6 mb-12 sm:grid-cols-2 lg:grid-cols-4">
@@ -122,7 +112,7 @@ const UserCheckStatus = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        {/* Left Side - Search & Filters */}
+        {/* Left Side - Search */}
         <div className="space-y-6 lg:col-span-1">
           <div className="p-8 bg-white border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] rounded-[40px]">
             <h3 className="flex items-center gap-3 mb-6 text-xl font-black text-slate-800 tracking-tight">
@@ -155,13 +145,13 @@ const UserCheckStatus = () => {
             {trackingResult && (
               <div className="mt-8 p-6 bg-blue-50/50 border border-blue-100 rounded-[32px] animate-in fade-in slide-in-from-bottom-4 duration-300">
                 <p className="mb-3 text-[10px] font-black tracking-[2px] text-blue-600 uppercase">Tracked Result</p>
-                <h4 className="mb-4 font-black text-slate-800 text-lg uppercase tracking-tight leading-tight">{trackingResult.subject}</h4>
+                <h4 className="mb-4 font-black text-slate-800 text-lg uppercase tracking-tight leading-tight">{trackingResult.subject || trackingResult.title}</h4>
                 <div className="flex items-center justify-between mb-6">
                   <span className={`px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-sm ${getStatusColor(trackingResult.status)}`}>{trackingResult.status}</span>
-                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">{new Date(trackingResult.submissionDate || trackingResult.createdAt || trackingResult.date).toLocaleDateString()}</span>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest italic">{new Date(trackingResult.createdAt || trackingResult.submissionDate).toLocaleDateString()}</span>
                 </div>
                 <button
-                  onClick={() => navigate(`/user/grievance/${trackingResult.grievanceCode || trackingResult.code}`)}
+                  onClick={() => navigate(`/user/grievance/${trackingResult.code || trackingResult._id}`)}
                   className="flex items-center justify-center w-full gap-2 py-3 bg-white border border-blue-100 text-blue-700 font-black text-xs rounded-xl hover:bg-blue-600 hover:text-white transition-all uppercase tracking-widest"
                 >
                   View Full History <i className="fas fa-chevron-right text-[10px]"></i>
@@ -239,34 +229,25 @@ const UserCheckStatus = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {dataLoading ? (
-                    <tr>
-                      <td colSpan="5" className="px-8 py-20 text-center">
-                        <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 animate-pulse">
-                          <i className="text-4xl fas fa-spinner fa-spin text-slate-300"></i>
-                        </div>
-                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Loading...</p>
-                      </td>
-                    </tr>
-                  ) : filtered.length === 0 ? (
+                  {filtered.length === 0 ? (
                     <tr>
                       <td colSpan="5" className="px-8 py-20 text-center">
                         <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6 text-slate-200">
                           <i className="text-4xl fas fa-inbox"></i>
                         </div>
-                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No match found</p>
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">No grievances found</p>
                       </td>
                     </tr>
                   ) : (
                     filtered.map((g, i) => (
-                      <tr key={i} className="transition-all hover:bg-blue-50/30 group cursor-pointer" onClick={() => navigate(`/user/grievance/${g.grievanceCode || g.code}`)}>
-                        <td className="px-8 py-6 font-mono text-xs font-black text-blue-700 tracking-wider group-hover:scale-105 transition-transform origin-left">{g.grievanceCode || g.code}</td>
+                      <tr key={g._id || i} className="transition-all hover:bg-blue-50/30 group cursor-pointer" onClick={() => navigate(`/user/grievance/${g.code || g._id}`)}>
+                        <td className="px-8 py-6 font-mono text-xs font-black text-blue-700 tracking-wider">{g.code}</td>
                         <td className="px-8 py-6">
-                          <p className="text-xs font-black text-slate-800 uppercase tracking-tight line-clamp-1 group-hover:text-blue-700 transition-colors">{g.subject}</p>
+                          <p className="text-xs font-black text-slate-800 uppercase tracking-tight line-clamp-1 group-hover:text-blue-700 transition-colors">{g.subject || g.title}</p>
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1 italic">{g.category}</p>
                         </td>
                         <td className="px-8 py-6 text-[10px] font-black text-slate-500 uppercase tracking-widest italic font-medium">
-                          {new Date(g.submissionDate || g.createdAt || g.date).toLocaleDateString()}
+                          {new Date(g.createdAt || g.submissionDate).toLocaleDateString()}
                         </td>
                         <td className="px-8 py-6">
                           <span className={`px-4 py-2 rounded-full text-[9px] font-black uppercase tracking-[1.5px] border shadow-sm ${getStatusColor(g.status)}`}>
@@ -275,7 +256,7 @@ const UserCheckStatus = () => {
                         </td>
                         <td className="px-8 py-6">
                           <Link
-                            to={`/user/grievance/${g.grievanceCode || g.code}`}
+                            to={`/user/grievance/${g.code || g._id}`}
                             className="flex items-center justify-center w-10 h-10 transition-all rounded-[14px] shadow-sm bg-slate-50 text-slate-300 group-hover:bg-blue-900 group-hover:text-white border border-slate-100 group-hover:border-transparent"
                             onClick={(e) => e.stopPropagation()}
                           >
@@ -291,19 +272,12 @@ const UserCheckStatus = () => {
 
             <div className="flex items-center justify-between p-6 border-t bg-slate-50/50 border-slate-50">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">SHOWING {filtered.length} GRIEVANCES</p>
-              <div className="flex gap-2">
-                <button className="flex items-center justify-center w-10 h-10 text-xs bg-white border border-slate-100 rounded-xl text-slate-300 transition-all hover:bg-slate-50 disabled:opacity-30" disabled><i className="fas fa-chevron-left"></i></button>
-                <button className="flex items-center justify-center w-10 h-10 text-xs bg-white border border-slate-100 rounded-xl text-slate-300 transition-all hover:bg-slate-50 disabled:opacity-30" disabled><i className="fas fa-chevron-right"></i></button>
-              </div>
             </div>
           </div>
         </div>
       </div>
 
-      <style>{`
-                .no-scrollbar::-webkit-scrollbar { display: none; }
-                .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-            `}</style>
+      <style>{`.no-scrollbar::-webkit-scrollbar { display: none; } .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }`}</style>
     </div>
   );
 };
