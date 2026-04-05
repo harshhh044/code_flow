@@ -7,31 +7,18 @@ const Notification = require("../models/Notification");
 // =========================
 const submitGrievance = async (req, res) => {
   try {
-    const {
-      title,
-      subject,
-      description,
-      category,
-      priority,
-      isAnonymous,
-    } = req.body;
+    const { title, subject, description, category, priority, isAnonymous } = req.body;
 
-    // 🔥 Ensure user exists (for logged-in)
     if (!req.user || !req.user._id) {
-      return res.status(401).json({
-        message: "User not authenticated",
-      });
+      return res.status(401).json({ message: "User not authenticated" });
     }
 
     const userId = req.user._id;
-
-    // Generate tracking code
     const year = new Date().getFullYear();
     const code = isAnonymous
       ? `ANON-${year}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`
       : `GRV-${year}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-    // 🔥 IMPORTANT: Always store userId (even if anonymous)
     const grievance = await Grievance.create({
       title: title || subject,
       subject: subject || title,
@@ -39,18 +26,16 @@ const submitGrievance = async (req, res) => {
       category,
       priority: priority || "medium",
       status: "pending",
-      submittedBy: userId, // ✅ ALWAYS store user
+      submittedBy: userId,
       isAnonymous: isAnonymous || false,
       code,
     });
 
-    // Populate user if needed
     await grievance.populate("submittedBy", "name email rollNumber");
 
-    // Create notifications (optional)
+    // Send notifications to admins
     try {
       const admins = await User.find({ role: "admin" });
-
       if (admins.length > 0) {
         const notifications = admins.map((admin) => ({
           userId: admin._id,
@@ -62,7 +47,6 @@ const submitGrievance = async (req, res) => {
           grievanceId: grievance._id,
           grievanceCode: code,
         }));
-
         await Notification.insertMany(notifications);
       }
     } catch (err) {
@@ -83,19 +67,10 @@ const getGrievances = async (req, res) => {
   try {
     console.log("User:", req.user);
 
-    let grievances;
+    // Admin sees all, student sees only their own
+    const query = req.user.role === "admin" ? {} : { submittedBy: req.user._id };
 
-    if (req.user.role === "admin") {
-      // Admin → see all
-      grievances = await Grievance.find({});
-    } else {
-      // User → see their own
-      grievances = await Grievance.find({
-        submittedBy: req.user._id,
-      });
-    }
-
-    grievances = await Grievance.find(grievances)
+    const grievances = await Grievance.find(query)
       .populate("submittedBy", "name email rollNumber")
       .populate("handledBy", "name email")
       .sort({ createdAt: -1 });
@@ -118,7 +93,7 @@ const getGrievanceById = async (req, res) => {
       .populate("comments.userId", "name email");
 
     if (!grievance) {
-      return res.status(404).json({ message: "Not found" });
+      return res.status(404).json({ message: "Grievance not found" });
     }
 
     if (
@@ -130,6 +105,7 @@ const getGrievanceById = async (req, res) => {
 
     res.json(grievance);
   } catch (error) {
+    console.error("Get by ID Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -139,14 +115,26 @@ const getGrievanceById = async (req, res) => {
 // =========================
 const getGrievanceByCode = async (req, res) => {
   try {
-    const grievance = await Grievance.findOne({ code: req.params.code });
+    const grievance = await Grievance.findOne({ code: req.params.code })
+      .populate("submittedBy", "name email rollNumber")
+      .populate("handledBy", "name email");
 
     if (!grievance) {
-      return res.status(404).json({ message: "Not found" });
+      return res.status(404).json({ message: "Grievance not found" });
+    }
+
+    // Only allow owner or admin to view
+    if (
+      req.user.role !== "admin" &&
+      !grievance.isAnonymous &&
+      grievance.submittedBy._id.toString() !== req.user._id.toString()
+    ) {
+      return res.status(403).json({ message: "Not authorized" });
     }
 
     res.json(grievance);
   } catch (error) {
+    console.error("Get by Code Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -159,7 +147,7 @@ const deleteGrievance = async (req, res) => {
     const grievance = await Grievance.findById(req.params.id);
 
     if (!grievance) {
-      return res.status(404).json({ message: "Not found" });
+      return res.status(404).json({ message: "Grievance not found" });
     }
 
     if (
@@ -170,9 +158,9 @@ const deleteGrievance = async (req, res) => {
     }
 
     await grievance.deleteOne();
-
     res.json({ message: "Deleted successfully" });
   } catch (error) {
+    console.error("Delete Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -182,24 +170,24 @@ const deleteGrievance = async (req, res) => {
 // =========================
 const addComment = async (req, res) => {
   try {
-    const { comment } = req.body;
+    const { comment, text } = req.body;
 
     const grievance = await Grievance.findById(req.params.id);
 
     if (!grievance) {
-      return res.status(404).json({ message: "Not found" });
+      return res.status(404).json({ message: "Grievance not found" });
     }
 
     grievance.comments.push({
       userId: req.user._id,
-      text: comment,
+      text: comment || text,
       timestamp: new Date(),
     });
 
     await grievance.save();
-
     res.json(grievance);
   } catch (error) {
+    console.error("Comment Error:", error);
     res.status(500).json({ message: error.message });
   }
 };
