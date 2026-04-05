@@ -10,33 +10,14 @@ const getAuthHeaders = () => ({
   Authorization: `Bearer ${getToken()}`,
 });
 
-// ═══════════════════════════════════════════════════════════════════
-// AUTH API
-// ═══════════════════════════════════════════════════════════════════
-
+// ================= AUTH API =================
 export const authAPI = {
-  // Register
   register: async (userData) => {
     try {
       const response = await fetch(`${API_URL}/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: userData.fullName || userData.name,
-          fullName: userData.fullName || userData.name,
-          email: userData.email || userData.uniEmail || userData.personalEmail,
-          uniEmail: userData.uniEmail || userData.email,
-          personalEmail: userData.personalEmail || userData.email,
-          password: userData.password,
-          role: userData.role || "student",
-          department: userData.dept || userData.department,
-          dept: userData.dept || userData.department,
-          rollNumber: userData.roll || userData.rollNo || userData.studentId,
-          rollNo: userData.roll || userData.rollNo,
-          studentId: userData.studentId || userData.rollNo,
-          uid: userData.uid || userData.studentId,
-          phone: userData.phone,
-        }),
+        body: JSON.stringify(userData),
       });
 
       const data = await response.json();
@@ -52,7 +33,6 @@ export const authAPI = {
     }
   },
 
-  // Login
   login: async (email, password) => {
     try {
       const response = await fetch(`${API_URL}/auth/login`, {
@@ -74,7 +54,6 @@ export const authAPI = {
     }
   },
 
-  // Get current user
   getMe: async () => {
     try {
       const response = await fetch(`${API_URL}/auth/me`, {
@@ -88,57 +67,39 @@ export const authAPI = {
     }
   },
 
-  // Logout
   logout: () => {
     localStorage.removeItem("token");
     localStorage.removeItem("currentUser");
   },
-
-  // Get current user from localStorage (sync)
-  getCurrentUser: () => {
-    const user = localStorage.getItem("currentUser");
-    return user ? JSON.parse(user) : null;
-  },
 };
 
-// ═══════════════════════════════════════════════════════════════════
-// GRIEVANCE API
-// ═══════════════════════════════════════════════════════════════════
-
+// ================= GRIEVANCE API =================
 export const grievanceAPI = {
-  // Submit grievance
   submitGrievance: async (grievanceData, isAnonymous = false) => {
     try {
-      const response = await fetch(`${API_URL}/grievances`, {
+      const response = await fetch(`${API_URL}/grievance`, {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({
-          title: grievanceData.subject || grievanceData.title,
-          subject: grievanceData.subject || grievanceData.title,
-          description: grievanceData.description || grievanceData.details,
-          details: grievanceData.details || grievanceData.description,
+          title: grievanceData.subject,
+          subject: grievanceData.subject,
+          description: grievanceData.description,
           category: grievanceData.category,
           priority: grievanceData.priority || "medium",
-          isAnonymous: isAnonymous,
+          isAnonymous,
         }),
       });
 
       const data = await response.json();
-
-      if (response.ok) {
-        localStorage.setItem("recentGrievance", JSON.stringify(data));
-      }
-
       return { success: response.ok, data };
     } catch (error) {
       return { success: false, error: error.message };
     }
   },
 
-  // Get user's grievances
   getUserGrievances: async () => {
     try {
-      const response = await fetch(`${API_URL}/grievances`, {
+      const response = await fetch(`${API_URL}/grievance`, {
         headers: getAuthHeaders(),
       });
 
@@ -149,24 +110,9 @@ export const grievanceAPI = {
     }
   },
 
-  // Get all grievances (admin)
-  getAllGrievances: async () => {
-    try {
-      const response = await fetch(`${API_URL}/grievances`, {
-        headers: getAuthHeaders(),
-      });
-
-      const data = await response.json();
-      return { success: response.ok, data };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  },
-
-  // Get single grievance by ID
   getGrievanceById: async (id) => {
     try {
-      const response = await fetch(`${API_URL}/grievances/${id}`, {
+      const response = await fetch(`${API_URL}/grievance/${id}`, {
         headers: getAuthHeaders(),
       });
 
@@ -177,10 +123,9 @@ export const grievanceAPI = {
     }
   },
 
-  // Get by code
   getGrievanceByCode: async (code) => {
     try {
-      const response = await fetch(`${API_URL}/grievances/code/${code}`, {
+      const response = await fetch(`${API_URL}/grievance/code/${code}`, {
         headers: getAuthHeaders(),
       });
 
@@ -191,10 +136,9 @@ export const grievanceAPI = {
     }
   },
 
-  // Delete grievance
   deleteGrievance: async (id) => {
     try {
-      const response = await fetch(`${API_URL}/grievances/${id}`, {
+      const response = await fetch(`${API_URL}/grievance/${id}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
@@ -206,10 +150,9 @@ export const grievanceAPI = {
     }
   },
 
-  // Add comment
   addComment: async (id, comment) => {
     try {
-      const response = await fetch(`${API_URL}/grievances/${id}/comment`, {
+      const response = await fetch(`${API_URL}/grievance/${id}/comment`, {
         method: "POST",
         headers: getAuthHeaders(),
         body: JSON.stringify({ comment }),
@@ -221,40 +164,16 @@ export const grievanceAPI = {
       return { success: false, error: error.message };
     }
   },
-
-  // Get statistics
-  getStatistics: async () => {
-    try {
-      const response = await fetch(`${API_URL}/admin/stats`, {
-        headers: getAuthHeaders(),
-      });
-
-      const data = await response.json();
-      return { success: response.ok, data };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  },
 };
 
-// ═══════════════════════════════════════════════════════════════════
-// ADMIN API
-// ═══════════════════════════════════════════════════════════════════
-
+// ================= ADMIN API =================
 export const adminAPI = {
-  // Update grievance status
   updateStatus: async (id, updateData) => {
     try {
-      const response = await fetch(`${API_URL}/admin/grievances/${id}`, {
+      const response = await fetch(`${API_URL}/admin/grievance/${id}`, {
         method: "PUT",
         headers: getAuthHeaders(),
-        body: JSON.stringify({
-          status: updateData.status,
-          adminResponse: updateData.adminNotes || updateData.reviewComments || updateData.adminResponse,
-          adminNotes: updateData.adminNotes,
-          reviewComments: updateData.reviewComments,
-          priority: updateData.priority,
-        }),
+        body: JSON.stringify(updateData),
       });
 
       const data = await response.json();
@@ -264,7 +183,6 @@ export const adminAPI = {
     }
   },
 
-  // Get dashboard stats
   getStats: async () => {
     try {
       const response = await fetch(`${API_URL}/admin/stats`, {
@@ -277,142 +195,11 @@ export const adminAPI = {
       return { success: false, error: error.message };
     }
   },
-
-  // Get all users
-  getAllUsers: async () => {
-    try {
-      const response = await fetch(`${API_URL}/admin/users`, {
-        headers: getAuthHeaders(),
-      });
-
-      const data = await response.json();
-      return { success: response.ok, data };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  },
-
-  // Update user status
-  updateUserStatus: async (id, status) => {
-    try {
-      const response = await fetch(`${API_URL}/admin/users/${id}/status`, {
-        method: "PUT",
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ status }),
-      });
-
-      const data = await response.json();
-      return { success: response.ok, data };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  },
-
-  // Get admin notifications
-  getNotifications: async () => {
-    try {
-      const response = await fetch(`${API_URL}/admin/notifications`, {
-        headers: getAuthHeaders(),
-      });
-
-      const data = await response.json();
-      return { success: response.ok, data };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  },
-
-  // Mark notification as read
-  markNotificationRead: async (id) => {
-    try {
-      const response = await fetch(`${API_URL}/admin/notifications/${id}/read`, {
-        method: "PUT",
-        headers: getAuthHeaders(),
-      });
-
-      const data = await response.json();
-      return { success: response.ok, data };
-    } catch (error) {
-      return { success: false, error: error.message };
-    }
-  },
 };
 
-// ═══════════════════════════════════════════════════════════════════
-// USER API
-// ═══════════════════════════════════════════════════════════════════
-
-export const userAPI = {
-  // Get all users (admin)
-  getUsers: async () => {
-    return adminAPI.getAllUsers();
-  },
-
-  // Get user by ID
-  getUserById: async (id) => {
-    const result = await userAPI.getUsers();
-    if (result.success) {
-      const user = result.data.find((u) => u._id === id || u.email === id);
-      return { success: !!user, data: user };
-    }
-    return result;
-  },
-
-  // Update user status
-  updateUserStatus: async (id, status) => {
-    return adminAPI.updateUserStatus(id, status);
-  },
-
-  // Get user's complaint count
-  getUserComplaints: async (userEmail) => {
-    const result = await grievanceAPI.getAllGrievances();
-    if (result.success) {
-      const count = result.data.filter(
-        (g) =>
-          g.submittedBy?.email === userEmail ||
-          g.submittedBy?.uniEmail === userEmail ||
-          g.submittedBy?.personalEmail === userEmail
-      ).length;
-      return { success: true, data: count };
-    }
-    return { success: false, data: 0 };
-  },
-
-  // Get stats
-  getStats: async () => {
-    const result = await userAPI.getUsers();
-    if (result.success) {
-      const users = result.data;
-      return {
-        success: true,
-        data: {
-          total: users.length,
-          active: users.filter((u) => u.status === "active").length,
-          blocked: users.filter((u) => u.status === "blocked").length,
-          restricted: users.filter((u) => u.status === "restricted").length,
-          removed: users.filter((u) => u.status === "removed").length,
-        },
-      };
-    }
-    return result;
-  },
-
-  // Activity logs
-  logActivity: (log) => {
-    const logs = JSON.parse(localStorage.getItem("activityLog") || "[]");
-    logs.unshift({ id: Date.now(), ...log });
-    localStorage.setItem("activityLog", JSON.stringify(logs.slice(0, 100)));
-  },
-
-  getActivityLogs: () => {
-    return JSON.parse(localStorage.getItem("activityLog") || "[]");
-  },
-};
-
-// Export default object
+// ================= EXPORT =================
 export default {
   auth: authAPI,
   grievance: grievanceAPI,
   admin: adminAPI,
-  user: userAPI,
 };
