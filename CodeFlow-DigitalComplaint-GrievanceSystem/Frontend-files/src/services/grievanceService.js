@@ -1,14 +1,13 @@
-import api from './api';
+import { grievanceAPI, adminAPI } from './api';
 
 export const grievanceService = {
+
   // Submit new grievance
   submitGrievance: async (grievanceData, isAnonymous = false) => {
     try {
-      const response = await api.post('/grievances', {
-        ...grievanceData,
-        isAnonymous
-      });
-      return response.data.data;
+      const result = await grievanceAPI.submitGrievance(grievanceData, isAnonymous);
+      if (!result.success) throw new Error(result.data?.message || 'Failed to submit');
+      return result.data;
     } catch (error) {
       console.error('Error submitting grievance:', error);
       throw error;
@@ -16,10 +15,11 @@ export const grievanceService = {
   },
 
   // Get all grievances for the logged-in user
-  getUserGrievances: async (user) => {
+  getUserGrievances: async () => {
     try {
-      const response = await api.get('/grievances/my');
-      return response.data.data;
+      const result = await grievanceAPI.getUserGrievances();
+      if (!result.success) return [];
+      return Array.isArray(result.data) ? result.data : result.data?.grievances || [];
     } catch (error) {
       console.error('Error fetching user grievances:', error);
       return [];
@@ -29,8 +29,9 @@ export const grievanceService = {
   // Get grievance by code
   getGrievanceByCode: async (code) => {
     try {
-      const response = await api.get(`/grievances/${code}`);
-      return response.data.data;
+      const result = await grievanceAPI.getGrievanceByCode(code);
+      if (!result.success) throw new Error(result.data?.message || 'Not found');
+      return result.data;
     } catch (error) {
       console.error(`Error fetching grievance ${code}:`, error);
       throw error;
@@ -40,8 +41,9 @@ export const grievanceService = {
   // Get all grievances (Admin only)
   getAllGrievances: async () => {
     try {
-      const response = await api.get('/grievances');
-      return response.data.data;
+      const result = await grievanceAPI.getAllGrievances();
+      if (!result.success) return [];
+      return Array.isArray(result.data) ? result.data : result.data?.grievances || [];
     } catch (error) {
       console.error('Error fetching all grievances:', error);
       return [];
@@ -49,62 +51,54 @@ export const grievanceService = {
   },
 
   // Update grievance status (Admin only)
-  updateStatus: async (code, updateData) => {
+  updateStatus: async (id, updateData) => {
     try {
-      // Normalize updateData if it's just a string (for backward compatibility)
       const payload = typeof updateData === 'string' ? { status: updateData } : updateData;
-
-      const response = await api.put(`/grievances/${code}/status`, payload);
-      return response.data.data;
+      const result = await adminAPI.updateStatus(id, payload);
+      if (!result.success) throw new Error(result.data?.message || 'Failed to update');
+      return result.data;
     } catch (error) {
-      console.error(`Error updating status for ${code}:`, error);
+      console.error(`Error updating status for ${id}:`, error);
       throw error;
     }
   },
 
   // Add comment to grievance
-  addComment: async (code, comment, isAdmin = false) => {
+  addComment: async (id, comment) => {
     try {
-      const response = await api.post(`/grievances/${code}/comment`, { text: comment });
-      return response.data.data;
+      const result = await grievanceAPI.addComment(id, comment);
+      if (!result.success) throw new Error(result.data?.message || 'Failed to add comment');
+      return result.data;
     } catch (error) {
-      console.error(`Error adding comment to ${code}:`, error);
+      console.error(`Error adding comment to ${id}:`, error);
       throw error;
     }
   },
 
-  // Get grievance statistics (Admin only)
+  // Get grievance statistics
   getStatistics: async () => {
     try {
-      const response = await api.get('/grievances/stats');
-      const stats = response.data.data;
-
-      // Map backend stats to match frontend expectations if necessary
+      const result = await grievanceAPI.getStatistics();
+      if (!result.success) throw new Error('Failed to fetch stats');
+      const stats = result.data;
       return {
-        total: stats.total,
-        pending: stats.pending,
-        inProgress: stats.inProgress,
-        resolved: stats.resolved,
-        rejected: stats.rejected,
-        anonymous: stats.anonymous,
-        byCategory: stats.byCategory.reduce((acc, curr) => {
-          acc[curr._id] = curr.count;
-          return acc;
-        }, {}),
-        byMonth: stats.byMonth || {} // Fallback for now
+        total: stats.total || 0,
+        pending: stats.pending || 0,
+        inProgress: stats.inProgress || 0,
+        resolved: stats.resolved || 0,
+        rejected: stats.rejected || 0,
+        anonymous: stats.anonymous || 0,
+        byCategory: Array.isArray(stats.byCategory)
+          ? stats.byCategory.reduce((acc, curr) => {
+              acc[curr._id] = curr.count;
+              return acc;
+            }, {})
+          : stats.byCategory || {},
+        byMonth: stats.byMonth || {}
       };
     } catch (error) {
       console.error('Error fetching statistics:', error);
-      return {
-        total: 0,
-        pending: 0,
-        inProgress: 0,
-        resolved: 0,
-        rejected: 0,
-        anonymous: 0,
-        byCategory: {},
-        byMonth: {}
-      };
+      return { total: 0, pending: 0, inProgress: 0, resolved: 0, rejected: 0, anonymous: 0, byCategory: {}, byMonth: {} };
     }
   }
 };
